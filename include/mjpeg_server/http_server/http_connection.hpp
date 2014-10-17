@@ -63,6 +63,8 @@ public:
   void start();
   // Perform a synchronous write operation to the client
   void write(const std::vector<boost::asio::const_buffer>&);
+  void write(const boost::asio::const_buffer&);
+  void write(const std::string&);
 
 private:
   void handle_read(const boost::system::error_code& e,
@@ -75,6 +77,7 @@ private:
   HttpRequest request_;
   HttpRequestParser request_parser_;
 };
+typedef boost::shared_ptr<HttpConnection> HttpConnectionPtr;
 
 
 

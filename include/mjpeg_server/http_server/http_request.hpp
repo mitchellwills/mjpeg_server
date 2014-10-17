@@ -40,6 +40,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <boost/lexical_cast.hpp>
 #include "mjpeg_server/http_server/http_header.hpp"
 
 namespace mjpeg_server {
@@ -55,6 +56,25 @@ struct HttpRequest {
   std::string path;
   std::string query;
   std::map<std::string, std::string> query_params;
+  std::string get_query_param_value_or_default(const std::string& name,
+					       const std::string& default_value) const;
+
+  template <typename T>
+  T get_query_param_value_or_default(const std::string& name,
+					       const T& default_value) const {
+    std::map<std::string, std::string>::const_iterator itr = query_params.find(name);
+    if(itr != query_params.end()) {
+      try {
+	return boost::lexical_cast<T>(itr->second);
+      }
+      catch(const boost::bad_lexical_cast &) {
+	return default_value;
+      }
+    }
+    else{
+      return default_value;
+    }
+}
 
   bool parse_uri();
 };

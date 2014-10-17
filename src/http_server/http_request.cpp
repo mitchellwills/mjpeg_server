@@ -69,7 +69,19 @@ bool HttpRequest::parse_uri(){
   else{
     return false;
   }
+
 }
+std::string HttpRequest::get_query_param_value_or_default(const std::string& name,
+							  const std::string& default_value) const {
+  std::map<std::string, std::string>::const_iterator itr = query_params.find(name);
+  if(itr != query_params.end()) {
+    return itr->second;
+  }
+  else{
+    return default_value;
+  }
+}
+
 
 
 }

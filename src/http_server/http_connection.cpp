@@ -66,7 +66,14 @@ void HttpConnection::write(const std::vector<boost::asio::const_buffer>& buffers
   boost::asio::write(socket_, buffers);
 }
 
-
+void HttpConnection::write(const boost::asio::const_buffer& buffer) {
+  std::vector<boost::asio::const_buffer> buffers;
+  buffers.push_back(buffer);
+  write(buffers);
+}
+void HttpConnection::write(const std::string& content) {
+  write(boost::asio::buffer(content));
+}
 
 void HttpConnection::handle_read(const boost::system::error_code& e,
 				 std::size_t bytes_transferred) {

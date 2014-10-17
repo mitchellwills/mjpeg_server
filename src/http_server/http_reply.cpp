@@ -256,6 +256,30 @@ void StaticHttpRequestHandler::operator()(const HttpRequest& request, boost::sha
 }
 
 
+ReplyBuilder HttpReply::builder(HttpReply::status_type status) {
+  return ReplyBuilder(status);
+}
+ReplyBuilder::ReplyBuilder(HttpReply::status_type status)
+  : status_(status) {}
+
+ReplyBuilder& ReplyBuilder::header(const std::string& name, const std::string& value) {
+  return header(HttpHeader(name, value));
+}
+ReplyBuilder& ReplyBuilder::header(const HttpHeader& header) {
+  headers_.push_back(header);
+  return *this;
+}
+
+ReplyBuilder& ReplyBuilder::headers(const std::vector<HttpHeader>& headers) {
+  headers_.insert(headers_.end(), headers.begin(), headers.end());
+  return *this;
+}
+
+void ReplyBuilder::write(HttpConnectionPtr connection) {
+  connection->write(status_strings::to_buffer(status_));
+  connection->write(HttpReply::to_buffers(headers_));
+}
+
 
 }
 }
