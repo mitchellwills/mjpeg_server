@@ -50,6 +50,10 @@
 #include <boost/thread.hpp>
 #include <boost/bind.hpp>
 
+#include "mjpeg_server/http_server/http_server.hpp"
+#include "mjpeg_server/http_server/http_reply.hpp"
+
+
 template<typename T>
   inline T ABS(T a)
   {
@@ -1114,13 +1118,26 @@ void MJPEGServer::unregisterSubscriberIfPossible(const std::string topic)
 }
 }
 
+void request_handler(const mjpeg_server::http_server::HttpRequest& request, boost::shared_ptr<mjpeg_server::http_server::HttpConnection> connection){
+  ROS_INFO_STREAM("Got Request: "<< request.method << ", " << request.path << ", " << request.query);
+  mjpeg_server::http_server::HttpReply::stock_reply(mjpeg_server::http_server::HttpReply::accepted)(request, connection);
+}
+
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "mjpeg_server");
 
   ros::NodeHandle nh;
-  mjpeg_server::MJPEGServer server(nh);
-  server.spin();
+
+  mjpeg_server::http_server::RequestHandlerGroup handler_group(mjpeg_server::http_server::HttpReply::stock_reply(mjpeg_server::http_server::HttpReply::not_found));
+  handler_group.addHandlerForPath("/", request_handler);
+  mjpeg_server::http_server::HttpServer server("0.0.0.0", "8081", request_handler, 5);
+  server.run();
+  ros::spin();
+  server.stop();
+
+  //mjpeg_server::MJPEGServer server(nh);
+  //server.spin();
 
   return (0);
 }

@@ -39,11 +39,11 @@
 
 #include <string>
 #include <vector>
+#include <map>
 #include "mjpeg_server/http_server/http_header.hpp"
 
 namespace mjpeg_server {
 namespace http_server {
-
 
 struct HttpRequest {
   std::string method;
@@ -51,6 +51,12 @@ struct HttpRequest {
   int http_version_major;
   int http_version_minor;
   std::vector<HttpHeader> headers;
+
+  std::string path;
+  std::string query;
+  std::map<std::string, std::string> query_params;
+
+  bool parse_uri();
 };
 
 }

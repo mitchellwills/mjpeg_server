@@ -34,61 +34,40 @@
  *
  *********************************************************************/
 
-
-#include <boost/bind.hpp>
-#include <boost/make_shared.hpp>
-#include "mjpeg_server/http_server/http_reply.hpp"
-#include "mjpeg_server/http_server/http_connection.hpp"
+#include <boost/regex.hpp>
+#include <boost/foreach.hpp>
+#include <boost/algorithm/string.hpp>
+#include "mjpeg_server/http_server/http_request.hpp"
 
 namespace mjpeg_server {
 namespace http_server {
 
+static boost::regex uri_regex("(.*?)(?:\\?(.*?))?");
 
-HttpConnection::HttpConnection(boost::asio::io_service& io_service,
-			       HttpServerRequestHandler handler)
-  : strand_(io_service),
-    socket_(io_service),
-    request_handler_(handler){}
+bool HttpRequest::parse_uri(){
+  boost::smatch match;
+  if(regex_match(uri, match, uri_regex)){
+    path.assign(match[1].first, match[1].second);
+    if(match[2].matched){
+      query.assign(match[2].first, match[2].second);
 
-boost::asio::ip::tcp::socket& HttpConnection::socket() {
-  return socket_;
-}
-
-void HttpConnection::start() {
-  socket_.async_read_some(boost::asio::buffer(buffer_),
-			  strand_.wrap(
-				       boost::bind(&HttpConnection::handle_read, shared_from_this(),
-						   boost::asio::placeholders::error,
-						   boost::asio::placeholders::bytes_transferred)));
-}
-
-void HttpConnection::write(const std::vector<boost::asio::const_buffer>& buffers) {
-  boost::asio::write(socket_, buffers);
-}
-
-
-
-void HttpConnection::handle_read(const boost::system::error_code& e,
-				 std::size_t bytes_transferred) {
-  if (!e) {
-    boost::tribool result;
-    boost::tie(result, boost::tuples::ignore) = request_parser_.parse(
-								      request_, buffer_.data(), buffer_.data() + bytes_transferred);
-
-    if (result) {
-      request_.parse_uri();
-      request_handler_(request_, shared_from_this());
-   }
-    else if (!result) {
-      HttpReply::stock_reply(HttpReply::bad_request)(request_, shared_from_this());
+      std::vector<std::string> pair_strings;
+      boost::split(pair_strings, query, boost::is_any_of("&"));
+      BOOST_FOREACH(std::string& pair_string, pair_strings) {
+	std::vector<std::string> pair_data;
+	const int eq_index = pair_string.find_first_of('=');
+	if(eq_index == std::string::npos) {
+	  continue;
+	}
+	else {
+	  query_params[pair_string.substr(0, eq_index)] = pair_string.substr(eq_index + 1);
+	}
+      }
     }
-    else {
-      socket_.async_read_some(boost::asio::buffer(buffer_),
-			      strand_.wrap(
-					   boost::bind(&HttpConnection::handle_read, shared_from_this(),
-						       boost::asio::placeholders::error,
-						       boost::asio::placeholders::bytes_transferred)));
-    }
+    return true;
+  }
+  else{
+    return false;
   }
 }
 

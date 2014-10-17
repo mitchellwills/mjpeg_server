@@ -29,7 +29,8 @@ include_directories(include
 
 add_library(http_server src/http_server/http_server.cpp
   src/http_server/http_connection.cpp src/http_server/http_request_parser.cpp
-  src/http_server/http_reply.cpp)
+  src/http_server/http_reply.cpp src/http_server/request_handler.cpp
+  src/http_server/http_request.cpp)
 target_link_libraries(http_server
   ${Boost_LIBRARIES}
 )

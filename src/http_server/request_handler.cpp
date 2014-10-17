@@ -34,64 +34,44 @@
  *
  *********************************************************************/
 
-
-#include <boost/bind.hpp>
-#include <boost/make_shared.hpp>
-#include "mjpeg_server/http_server/http_reply.hpp"
-#include "mjpeg_server/http_server/http_connection.hpp"
+#include <boost/regex.hpp>
+#include "mjpeg_server/http_server/request_handler.hpp"
 
 namespace mjpeg_server {
 namespace http_server {
 
+RequestHandlerGroup::RequestHandlerGroup(HttpServerRequestHandler default_handler)
+  : default_handler_(default_handler) {}
 
-HttpConnection::HttpConnection(boost::asio::io_service& io_service,
-			       HttpServerRequestHandler handler)
-  : strand_(io_service),
-    socket_(io_service),
-    request_handler_(handler){}
 
-boost::asio::ip::tcp::socket& HttpConnection::socket() {
-  return socket_;
+class PathMatcher {
+public:
+  explicit PathMatcher(const std::string& path_regex_string)
+    : path_regex_(boost::regex(path_regex_string)) {}
+  bool operator()(const HttpRequest& request){
+    return regex_match(request.path, path_regex_);
+  }
+private:
+  const boost::regex path_regex_;
+};
+void RequestHandlerGroup::addHandlerForPath(const std::string& path_regex, HttpServerRequestHandler handler){
+  addHandler(PathMatcher(path_regex), handler);
+}
+void RequestHandlerGroup::addHandler(HandlerPredicate predicate, HttpServerRequestHandler handler) {
+  handlers_.push_back(std::make_pair(predicate, handler));
 }
 
-void HttpConnection::start() {
-  socket_.async_read_some(boost::asio::buffer(buffer_),
-			  strand_.wrap(
-				       boost::bind(&HttpConnection::handle_read, shared_from_this(),
-						   boost::asio::placeholders::error,
-						   boost::asio::placeholders::bytes_transferred)));
-}
 
-void HttpConnection::write(const std::vector<boost::asio::const_buffer>& buffers) {
-  boost::asio::write(socket_, buffers);
-}
-
-
-
-void HttpConnection::handle_read(const boost::system::error_code& e,
-				 std::size_t bytes_transferred) {
-  if (!e) {
-    boost::tribool result;
-    boost::tie(result, boost::tuples::ignore) = request_parser_.parse(
-								      request_, buffer_.data(), buffer_.data() + bytes_transferred);
-
-    if (result) {
-      request_.parse_uri();
-      request_handler_(request_, shared_from_this());
-   }
-    else if (!result) {
-      HttpReply::stock_reply(HttpReply::bad_request)(request_, shared_from_this());
-    }
-    else {
-      socket_.async_read_some(boost::asio::buffer(buffer_),
-			      strand_.wrap(
-					   boost::bind(&HttpConnection::handle_read, shared_from_this(),
-						       boost::asio::placeholders::error,
-						       boost::asio::placeholders::bytes_transferred)));
+void RequestHandlerGroup::operator()(const HttpRequest& request, boost::shared_ptr<HttpConnection> connection){
+  for(int i = 0; i < handlers_.size(); ++i) {
+    std::pair<HandlerPredicate, HttpServerRequestHandler>& handler = handlers_[i];
+    if(handler.first(request)) {
+      handler.second(request, connection);
+      return;
     }
   }
+  default_handler_(request, connection);
 }
-
 
 }
 }

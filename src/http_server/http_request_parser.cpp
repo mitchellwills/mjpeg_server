@@ -10,7 +10,6 @@
 
 #include "mjpeg_server/http_server/http_request_parser.hpp"
 
-
 namespace mjpeg_server {
 namespace http_server {
 HttpRequestParser::HttpRequestParser()
