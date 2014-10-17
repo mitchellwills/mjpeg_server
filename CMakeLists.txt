@@ -27,12 +27,20 @@ include_directories(include
   ${Boost_INCLUDE_DIRS}
 )
 
+add_library(http_server src/http_server/http_server.cpp
+  src/http_server/http_connection.cpp src/http_server/http_request_parser.cpp
+  src/http_server/http_reply.cpp)
+target_link_libraries(http_server
+  ${Boost_LIBRARIES}
+)
+
+
 ## Declare a cpp executable
 add_executable(${PROJECT_NAME} src/mjpeg_server.cpp)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME}
-  ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${OpenCV_LIBS}
+  ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${OpenCV_LIBS} http_server
 )
 
 #############
