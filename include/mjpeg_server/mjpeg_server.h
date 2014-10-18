@@ -54,12 +54,14 @@ class ImageStreamer {
 		image_transport::ImageTransport it);
   void imageCallback(const sensor_msgs::ImageConstPtr& msg);
   bool isInactive();
+  std::string getTopic() { return topic_; };
  protected:
   virtual bool sendImage(const cv::Mat&) = 0;
   http_server::HttpConnectionPtr connection_;
   bool inactive_;
  private:
   image_transport::Subscriber image_sub_;
+  std::string topic_;
   int width_;
   int height_;
   bool invert_;

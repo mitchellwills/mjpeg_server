@@ -48,30 +48,15 @@
 namespace mjpeg_server
 {
 
-static  void invertImage(const cv::Mat& input, cv::Mat& output)
-  {
-
-    cv::Mat_<cv::Vec3b>& input_img = (cv::Mat_<cv::Vec3b>&)input; //3 channel pointer to image
-    cv::Mat_<cv::Vec3b>& output_img = (cv::Mat_<cv::Vec3b>&)output; //3 channel pointer to image
-    cv::Size size = input.size();
-
-    for (int j = 0; j < size.height; ++j)
-      for (int i = 0; i < size.width; ++i)
-	{
-	  output_img(size.height - j - 1, size.width - i - 1) = input_img(j, i);
-	}
-    return;
-  }
-
-  ImageStreamer::ImageStreamer(const http_server::HttpRequest& request,
-			       http_server::HttpConnectionPtr connection,
-			       image_transport::ImageTransport it)
+ImageStreamer::ImageStreamer(const http_server::HttpRequest& request,
+			     http_server::HttpConnectionPtr connection,
+			     image_transport::ImageTransport it)
     : connection_(connection), inactive_(false) {
-  std::string topic = request.get_query_param_value_or_default("topic", "");
+  topic_ = request.get_query_param_value_or_default("topic", "");
   width_ = request.get_query_param_value_or_default<int>("width", -1);
   height_ = request.get_query_param_value_or_default<int>("height", -1);
   invert_ = request.has_query_param("invert");
-  image_sub_ = it.subscribe(topic, 1, &ImageStreamer::imageCallback, this);
+  image_sub_ = it.subscribe(topic_, 1, &ImageStreamer::imageCallback, this);
 }
 void ImageStreamer::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
   if(inactive_)
@@ -98,12 +83,13 @@ void ImageStreamer::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
     }
   }
   catch (cv_bridge::Exception& e) {
-    ROS_ERROR("cv_bridge exception: %s", e.what());
+    ROS_WARN("cv_bridge exception: %s", e.what());
     inactive_ = true;
     return;
   }
   catch (boost::system::system_error& e) {
-    ROS_ERROR("system_error exception: %s", e.what());
+    // happens when client disconnects
+    ROS_DEBUG("system_error exception: %s", e.what());
     inactive_ = true;
     return;
   }
@@ -171,6 +157,17 @@ bool JpegSnapshotStreamer::sendImage(const cv::Mat& img) {
   inactive_ = true;
 }
 
+static void ros_connection_logger(http_server::HttpServerRequestHandler forward,
+				  const http_server::HttpRequest& request,
+				  http_server::HttpConnectionPtr connection) {
+  ROS_INFO_STREAM("Handling Request: " << request.uri);
+  try {
+    forward(request, connection);
+  } catch(std::exception& e) {
+    ROS_WARN_STREAM("Error Handling Request: " << e.what());
+  }
+}
+
 
 MjpegServer::MjpegServer(ros::NodeHandle& nh, ros::NodeHandle& private_nh) :
   nh_(nh), image_transport_(nh),
@@ -185,7 +182,8 @@ MjpegServer::MjpegServer(ros::NodeHandle& nh, ros::NodeHandle& private_nh) :
   handler_group_.addHandlerForPath("/stream_viewer", boost::bind(&MjpegServer::handle_stream_viewer, this, _1, _2));
   handler_group_.addHandlerForPath("/snapshot", boost::bind(&MjpegServer::handle_snapshot, this, _1, _2));
 
-  server_.reset(new http_server::HttpServer("0.0.0.0", boost::lexical_cast<std::string>(port), handler_group_, 5));
+  server_.reset(new http_server::HttpServer("0.0.0.0", boost::lexical_cast<std::string>(port),
+					    boost::bind(ros_connection_logger, handler_group_, _1, _2), 5));
 }
 
 MjpegServer::~MjpegServer() {
@@ -193,6 +191,7 @@ MjpegServer::~MjpegServer() {
 
 void MjpegServer::spin() {
   server_->run();
+  ROS_INFO("Waiting For connections");
   ros::spin();
   server_->stop();
 }
@@ -200,7 +199,13 @@ void MjpegServer::spin() {
 void MjpegServer::cleanup_inactive_streams(){
   boost::mutex::scoped_lock lock(subscriber_mutex_, boost::try_to_lock);
   if(lock) {
-    image_subscribers_.erase(std::remove_if(image_subscribers_.begin(), image_subscribers_.end(), boost::bind(&ImageStreamer::isInactive, _1)),
+    typedef std::vector<boost::shared_ptr<ImageStreamer> >::iterator itr_type;
+    itr_type new_end
+      = std::remove_if(image_subscribers_.begin(), image_subscribers_.end(), boost::bind(&ImageStreamer::isInactive, _1));
+    for(itr_type itr = new_end; itr < image_subscribers_.end(); ++ itr){
+      ROS_INFO_STREAM("Removed Stream: " << (*itr)->getTopic());
+    }
+    image_subscribers_.erase(new_end,
 			     image_subscribers_.end());
   }
 }

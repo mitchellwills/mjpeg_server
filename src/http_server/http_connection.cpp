@@ -84,7 +84,12 @@ void HttpConnection::handle_read(const boost::system::error_code& e,
 
     if (result) {
       request_.parse_uri();
-      request_handler_(request_, shared_from_this());
+      try {
+	request_handler_(request_, shared_from_this());
+      } catch(...){
+	// error constructing request
+	// just kill the connection as the handler may have already started writing stuff out
+      }
    }
     else if (!result) {
       HttpReply::stock_reply(HttpReply::bad_request)(request_, shared_from_this());
