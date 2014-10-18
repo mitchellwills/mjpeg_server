@@ -56,6 +56,7 @@ struct HttpRequest {
   std::string path;
   std::string query;
   std::map<std::string, std::string> query_params;
+  bool has_query_param(const std::string& name) const;
   std::string get_query_param_value_or_default(const std::string& name,
 					       const std::string& default_value) const;
 

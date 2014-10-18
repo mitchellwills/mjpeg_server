@@ -53,11 +53,13 @@ bool HttpRequest::parse_uri(){
 
       std::vector<std::string> pair_strings;
       boost::split(pair_strings, query, boost::is_any_of("&"));
-      BOOST_FOREACH(std::string& pair_string, pair_strings) {
+      BOOST_FOREACH(const std::string& pair_string, pair_strings) {
 	std::vector<std::string> pair_data;
 	const int eq_index = pair_string.find_first_of('=');
 	if(eq_index == std::string::npos) {
-	  continue;
+	  if(pair_string.size() > 0) {
+	    query_params[pair_string] = "";
+	  }
 	}
 	else {
 	  query_params[pair_string.substr(0, eq_index)] = pair_string.substr(eq_index + 1);
@@ -71,6 +73,11 @@ bool HttpRequest::parse_uri(){
   }
 
 }
+bool HttpRequest::has_query_param(const std::string& name) const {
+  std::map<std::string, std::string>::const_iterator itr = query_params.find(name);
+  return itr != query_params.end();
+}
+
 std::string HttpRequest::get_query_param_value_or_default(const std::string& name,
 							  const std::string& default_value) const {
   std::map<std::string, std::string>::const_iterator itr = query_params.find(name);

@@ -62,6 +62,7 @@ class ImageStreamer {
   image_transport::Subscriber image_sub_;
   int width_;
   int height_;
+  bool invert_;
 };
 
 
@@ -123,6 +124,7 @@ class MjpegServer {
   void cleanup_inactive_streams();
   ros::NodeHandle nh_;
   image_transport::ImageTransport image_transport_;
+  ros::Timer cleanup_timer_;
   boost::shared_ptr<http_server::HttpServer> server_;
   mjpeg_server::http_server::RequestHandlerGroup handler_group_;
 

@@ -48,6 +48,21 @@
 namespace mjpeg_server
 {
 
+static  void invertImage(const cv::Mat& input, cv::Mat& output)
+  {
+
+    cv::Mat_<cv::Vec3b>& input_img = (cv::Mat_<cv::Vec3b>&)input; //3 channel pointer to image
+    cv::Mat_<cv::Vec3b>& output_img = (cv::Mat_<cv::Vec3b>&)output; //3 channel pointer to image
+    cv::Size size = input.size();
+
+    for (int j = 0; j < size.height; ++j)
+      for (int i = 0; i < size.width; ++i)
+	{
+	  output_img(size.height - j - 1, size.width - i - 1) = input_img(j, i);
+	}
+    return;
+  }
+
   ImageStreamer::ImageStreamer(const http_server::HttpRequest& request,
 			       http_server::HttpConnectionPtr connection,
 			       image_transport::ImageTransport it)
@@ -55,6 +70,7 @@ namespace mjpeg_server
   std::string topic = request.get_query_param_value_or_default("topic", "");
   width_ = request.get_query_param_value_or_default<int>("width", -1);
   height_ = request.get_query_param_value_or_default<int>("height", -1);
+  invert_ = request.has_query_param("invert");
   image_sub_ = it.subscribe(topic, 1, &ImageStreamer::imageCallback, this);
 }
 void ImageStreamer::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
@@ -64,6 +80,12 @@ void ImageStreamer::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
   try {
     cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
     cv::Mat img = cv_ptr->image;
+
+    if(invert_) {
+      // Rotate 180 degrees
+      cv::flip(img, img, false);
+      cv::flip(img, img, true);
+    }
 
     if(width_ > 0 && height_ > 0) {
       cv::Mat img_resized;
@@ -153,6 +175,7 @@ bool JpegSnapshotStreamer::sendImage(const cv::Mat& img) {
 MjpegServer::MjpegServer(ros::NodeHandle& nh, ros::NodeHandle& private_nh) :
   nh_(nh), image_transport_(nh),
   handler_group_(http_server::HttpReply::stock_reply(http_server::HttpReply::not_found)) {
+  cleanup_timer_ = nh.createTimer(ros::Duration(0.5), boost::bind(&MjpegServer::cleanup_inactive_streams, this));
 
   int port;
   private_nh.param("port", port, 8080);
@@ -170,10 +193,7 @@ MjpegServer::~MjpegServer() {
 
 void MjpegServer::spin() {
   server_->run();
-  while(ros::ok()){
-    ros::spinOnce();
-    cleanup_inactive_streams();
-  }
+  ros::spin();
   server_->stop();
 }
 
