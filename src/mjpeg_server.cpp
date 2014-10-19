@@ -61,10 +61,27 @@ ImageStreamer::ImageStreamer(const http_server::HttpRequest& request,
 void ImageStreamer::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
   if(inactive_)
     return;
-  cv_bridge::CvImagePtr cv_ptr;
+
+  cv::Mat img_orig;
   try {
-    cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
-    cv::Mat img = cv_ptr->image;
+    if(msg->encoding.find("F") != std::string::npos) {
+      // scale floating point images
+      cv::Mat float_image_bridge = cv_bridge::toCvShare(msg, msg->encoding)->image;
+      cv::Mat_<float> float_image = float_image_bridge;
+      double max_val;
+      cv::minMaxIdx(float_image, 0, &max_val);
+
+      if(max_val > 0) {
+	float_image *= (255 / max_val);
+      }
+      img_orig = float_image;
+    }
+    else {
+      // Convert to OpenCV native BGR color
+      img_orig = cv_bridge::toCvShare(msg, "bgr8")->image;
+    }
+
+    cv::Mat img = img_orig.clone();
 
     if(invert_) {
       // Rotate 180 degrees
@@ -83,13 +100,28 @@ void ImageStreamer::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
     }
   }
   catch (cv_bridge::Exception& e) {
-    ROS_WARN("cv_bridge exception: %s", e.what());
+    ROS_ERROR_THROTTLE(30, "cv_bridge exception: %s", e.what());
+    inactive_ = true;
+    return;
+  }
+  catch (cv::Exception& e) {
+    ROS_ERROR_THROTTLE(30, "cv_bridge exception: %s", e.what());
     inactive_ = true;
     return;
   }
   catch (boost::system::system_error& e) {
     // happens when client disconnects
     ROS_DEBUG("system_error exception: %s", e.what());
+    inactive_ = true;
+    return;
+  }
+  catch (std::exception& e) {
+    ROS_ERROR_THROTTLE(30, "exception: %s", e.what());
+    inactive_ = true;
+    return;
+  }
+  catch (...) {
+    ROS_ERROR_THROTTLE(30, "exception");
     inactive_ = true;
     return;
   }
